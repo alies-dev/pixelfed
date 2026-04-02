@@ -82,16 +82,14 @@ class MediaStorageService
             (new self)->localToCloud($media);
         }
 
-        if ($media->status_id && config_cache('pixelfed.cloud_storage') && ! config('pixelfed.media_fast_process')) {
+        if ($media->status_id && config_cache('pixelfed.cloud_storage')) {
             $still_processing = Media::whereStatusId($media->status_id)
                 ->whereNull('cdn_url')
                 ->exists();
             if (! $still_processing) {
-                // In this configuration, publishing the status is delayed until the media uploads
-                // Since all media have been processed, we can kick the NewStatusPipeline job
-                // N.B. there's a timing condition with multiple MediaStorageService workers matching this if statement
-                // However, it's acceptable to publish the same status multiple times to ActivityPub
-                $status = Status::where('id', $media->status_id)->first(); // This could be null if the status was deleted
+                // All media have been uploaded to S3. Re-dispatch NewStatusPipeline
+                // so federation uses the correct S3/CDN URLs instead of local paths.
+                $status = Status::where('id', $media->status_id)->first();
                 if ($status) {
                     NewStatusPipeline::dispatch($status);
                 }
@@ -116,9 +114,16 @@ class MediaStorageService
         $storagePath = implode('/', $p);
 
         $url = ResilientMediaStorageService::store($storagePath, $path, $name);
+
+        if (! $url) {
+            throw new \Exception("Failed to upload media {$media->id} to cloud storage");
+        }
+
         if ($media->thumbnail_path) {
             $thumbUrl = ResilientMediaStorageService::store($storagePath, $thumb, $thumbname);
-            $media->thumbnail_url = $thumbUrl;
+            if ($thumbUrl) {
+                $media->thumbnail_url = $thumbUrl;
+            }
         }
         $media->cdn_url = $url;
         $media->optimized_url = $url;

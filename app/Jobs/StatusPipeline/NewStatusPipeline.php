@@ -24,9 +24,13 @@ class NewStatusPipeline implements ShouldQueue
      */
     public $deleteWhenMissingModels = true;
 
-    public $timeout = 5;
+    public $timeout = 30;
 
-    public $tries = 1;
+    public $tries = 3;
+
+    public $maxExceptions = 3;
+
+    public $backoff = [5, 15, 30];
 
     /**
      * Create a new job instance.
@@ -59,15 +63,14 @@ class NewStatusPipeline implements ShouldQueue
             // Don't publish the status, and just no-op
             return;
         }
-        if (config_cache('pixelfed.cloud_storage') && ! config('pixelfed.media_fast_process')) {
+        if (config_cache('pixelfed.cloud_storage')) {
             $still_processing = Media::whereStatusId($this->status->id)
                 ->whereNull('cdn_url')
                 ->exists();
             if ($still_processing) {
-                // The media items in the status are still being processed.
-                // We can't publish the status to ActivityPub because the final remote URL is not
-                // yet known. Instead, do nothing here. The media pipeline will re-call the NewStatusPipeline
-                // once all media items are finished processing
+                // Media is still being uploaded to S3. Defer federation until all
+                // media have cdn_url set so federated payloads use the correct URLs.
+                // MediaStorageService will re-dispatch this job once uploads complete.
                 return;
             }
         }

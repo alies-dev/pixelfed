@@ -269,20 +269,6 @@ return [
         ],
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Media Fast Process
-    |--------------------------------------------------------------------------
-    |
-    | Don't require photos & video to finish optimization &
-    | upload to S3 if enabled before posting. If disabled
-    | users will have to wait until processed before posting,
-    | sacrificing the user experience to ensure media is federated
-    | using S3 urls (if enabled). Default: off
-    |
-    */
-    'media_fast_process' => env('PF_MEDIA_FAST_PROCESS', true),
-
     'max_altext_length' => env('PF_MEDIA_MAX_ALTTEXT_LENGTH', 1000),
 
     'allow_app_registration' => env('PF_ALLOW_APP_REGISTRATION', true),

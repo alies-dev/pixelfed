@@ -31,6 +31,14 @@ class StatusActivityPubDeliver implements ShouldQueue
      */
     public $deleteWhenMissingModels = true;
 
+    public $tries = 3;
+
+    public $maxExceptions = 3;
+
+    public $backoff = [60, 180, 600];
+
+    public $timeout = 120;
+
     /**
      * Create a new job instance.
      *
@@ -148,14 +156,32 @@ class StatusActivityPubDeliver implements ShouldQueue
             }
         };
 
+        $failedDeliveries = [];
+
         $pool = new Pool($client, $requests($audience), [
             'concurrency' => config('federation.activitypub.delivery.concurrency'),
-            'fulfilled' => function ($response, $index) {},
-            'rejected' => function ($reason, $index) {},
+            'fulfilled' => function ($response, $index) use ($audience) {
+                $statusCode = $response->getStatusCode();
+                if ($statusCode >= 400) {
+                    Log::warning("StatusActivityPubDeliver: Unexpected status {$statusCode} delivering to {$audience[$index]}");
+                }
+            },
+            'rejected' => function ($reason, $index) use ($audience, &$failedDeliveries) {
+                $url = $audience[$index] ?? 'unknown';
+                $message = $reason instanceof \Exception ? $reason->getMessage() : (string) $reason;
+                Log::warning("StatusActivityPubDeliver: Failed to deliver to {$url}: {$message}");
+                $failedDeliveries[] = $url;
+            },
         ]);
 
         $promise = $pool->promise();
 
         $promise->wait();
+
+        if (! empty($failedDeliveries)) {
+            $total = count($audience);
+            $failed = count($failedDeliveries);
+            Log::warning("StatusActivityPubDeliver: {$failed}/{$total} deliveries failed for status {$status->id}");
+        }
     }
 }

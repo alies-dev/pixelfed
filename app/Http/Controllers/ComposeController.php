@@ -788,28 +788,8 @@ class ComposeController extends Controller
             ->whereNull('status_id')
             ->findOrFail($request->input('id'));
 
-        if (config('pixelfed.media_fast_process')) {
-            return [
-                'finished' => true,
-            ];
-        }
-
-        $finished = false;
-
-        switch ($media->mime) {
-            case 'image/jpeg':
-            case 'image/png':
-            case 'video/mp4':
-                $finished = (bool) config_cache('pixelfed.cloud_storage') ? (bool) $media->cdn_url : (bool) $media->processed_at;
-                break;
-
-            default:
-                // code...
-                break;
-        }
-
         return [
-            'finished' => $finished,
+            'finished' => true,
         ];
     }
 

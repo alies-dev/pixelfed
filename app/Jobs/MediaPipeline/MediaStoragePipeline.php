@@ -19,6 +19,12 @@ class MediaStoragePipeline implements ShouldQueue
 
     public $deleteWhenMissingModels = true;
 
+    public $tries = 3;
+
+    public $maxExceptions = 3;
+
+    public $backoff = [30, 120, 300];
+
     public function __construct(Media $media)
     {
         $this->media = $media;

@@ -42,6 +42,12 @@ class StatusEntityLexer implements ShouldQueue
      */
     public $deleteWhenMissingModels = true;
 
+    public $tries = 3;
+
+    public $maxExceptions = 3;
+
+    public $backoff = [10, 30, 60];
+
     /**
      * Create a new job instance.
      *
