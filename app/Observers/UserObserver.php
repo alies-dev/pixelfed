@@ -61,24 +61,11 @@ class UserObserver
             return;
         }
 
+        if (Profile::whereUsername($user->username)->exists()) {
+            return;
+        }
+
         if (empty($user->profile)) {
-            // Check if an orphaned profile exists (created but never linked)
-            $existingProfile = Profile::whereUsername($user->username)->first();
-
-            if ($existingProfile) {
-                // Link orphaned profile to user if profile_id is not set
-                if (! $user->profile_id) {
-                    DB::transaction(function () use ($user, $existingProfile) {
-                        $user = User::findOrFail($user->id);
-                        $user->profile_id = $existingProfile->id;
-                        $user->save();
-                    });
-                }
-
-                return;
-            }
-
-            // Create profile and link to user in a single atomic transaction
             $profile = DB::transaction(function () use ($user) {
                 $profile = new Profile;
                 $profile->user_id = $user->id;
@@ -99,14 +86,21 @@ class UserObserver
                 $profile->save();
                 $this->applyDefaultDomainBlocks($user);
 
+                return $profile;
+            });
+
+            DB::transaction(function () use ($user, $profile) {
                 $user = User::findOrFail($user->id);
                 $user->profile_id = $profile->id;
                 $user->save();
 
-                return $profile;
-            });
+                // UserNotify::updateOrCreate([
+                //     'profile_id' => $profile->id,
+                //     'user_id' => $user->id,
+                // ]);
 
-            CreateAvatar::dispatch($profile);
+                CreateAvatar::dispatch($profile);
+            });
 
             if ((bool) config_cache('account.autofollow') == true) {
                 $names = config_cache('account.autofollow_usernames');
